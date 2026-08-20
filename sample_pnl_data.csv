@@ -1,2 +1,2 @@
-Total_Sales,Discounts_Refunds,Total_Direct_COGS,Total_Indirect_COGS,Total_Operating_Expenses,Marketing_Advertising,Payroll_Salaries,Taxes_Interest
-125000.0,-8500.0,48000.0,12500.0,18500.0,6500.0,24000.0,4200.0
+Total_Sales,Discounts_Refunds,Total_Direct_COGS,Total_Indirect_COGS,Total_Operating_Expenses,Gain_Loss_on_Sales_of_Assets,Depreciation_Amortization,Interest_Expense,Other_Income_Expenses,Other_Non_Operating_Expenses,Income_Taxes,Total_Adjustments
+107.0,-7.0,52.5,13.5,14.0,0.0,20.0,0.0,0.0,0.0,2.5,0.0

@@ -16,7 +16,7 @@ from app import PLForecastApp
 
 
 class TestLedgerCalculations:
-    """Test core financial calculation engine"""
+    """Test core financial calculation engine with EBITDA adjustments"""
 
     @pytest.fixture
     def app_instance(self):
@@ -27,48 +27,56 @@ class TestLedgerCalculations:
         app.destroy()
 
     def test_baseline_calculation(self, app_instance):
-        """Test default baseline financial figures and margins"""
+        """Test default baseline financial figures and EBITDA adjustments"""
         app_instance.calculate_interactions()
         
-        # Default baseline: Sales (107k) - Discounts (7k) = Revenue 100k
-        # Direct COGS (52.5k) + Indirect COGS (13.5k) = COGS 66k
-        # Gross Profit = 34k (34.0%)
-        # OpEx = 14k, Taxes = 3.5k -> Net Income = 16.5k (16.5%)
-        assert "$100,000.00" in app_instance.kpi_rev.cget("text")
-        assert "$66,000.00" in app_instance.kpi_cogs.cget("text")
-        assert "$34,000.00" in app_instance.kpi_gp.cget("text")
-        assert "34.0%" in app_instance.kpi_gp.cget("text")
-        assert "$16,500.00" in app_instance.kpi_ni.cget("text")
-        assert "16.5%" in app_instance.kpi_ni.cget("text")
+        # Default baseline:
+        # Sales (107.0) - Discounts (7.0) = Revenue 100.0
+        # Direct COGS (52.5) + Indirect COGS (13.5) = COGS 66.0
+        # Gross Profit = 34.00 (34.0%)
+        # OpEx = 14.0, Depreciation = 20.0, Taxes = 2.5
+        # Net Income = 34.0 - 14.0 - 0 - 2.5 - 20.0 = -2.50
+        # Reported EBITDA = -2.50 + 22.50 = 20.00
+        # Management Adjusted EBITDA = 20.00
+        assert "$34.00" in app_instance.kpi_gp.cget("text")
+        assert "-$2.50" in app_instance.kpi_ni.cget("text") or "$-2.50" in app_instance.kpi_ni.cget("text")
+        assert "$20.00" in app_instance.kpi_ebitda.cget("text")
+        assert "$20.00" in app_instance.kpi_adj_ebitda.cget("text")
 
     def test_dynamic_csv_ingestion(self, app_instance, tmp_path):
         """Test loading dynamic CSV spreadsheet and rebuilding inputs"""
         csv_file = tmp_path / "custom_pnl.csv"
         df = pd.DataFrame([{
-            "Total_Sales": 200000.0,
-            "Discounts_Refunds": -10000.0,
-            "Total_Direct_COGS": 80000.0,
-            "Total_Indirect_COGS": 20000.0,
-            "Total_Operating_Expenses": 30000.0,
-            "Taxes_Interest": 10000.0
+            "Total_Sales": 200.0,
+            "Discounts_Refunds": -10.0,
+            "Total_Direct_COGS": 80.0,
+            "Total_Indirect_COGS": 20.0,
+            "Total_Operating_Expenses": 30.0,
+            "Depreciation_Amortization": 15.0,
+            "Interest_Expense": 5.0,
+            "Income_Taxes": 10.0,
+            "Total_Adjustments": 5.0
         }])
         df.to_csv(csv_file, index=False)
 
         app_instance.df = df
         app_instance.build_dynamic_inputs()
         
-        # Revenue = 190k, COGS = 100k, Gross Profit = 90k (47.4%), Net Income = 50k (26.3%)
-        assert "$190,000.00" in app_instance.kpi_rev.cget("text")
-        assert "$100,000.00" in app_instance.kpi_cogs.cget("text")
-        assert "$90,000.00" in app_instance.kpi_gp.cget("text")
-        assert "$50,000.00" in app_instance.kpi_ni.cget("text")
+        # Revenue = 190, COGS = 100, Gross Profit = 90.00
+        # Net Income = 90 - 30 - 5 - 10 - 15 = 30.00
+        # Reported EBITDA = 30 + (5 + 10 + 15) = 60.00
+        # Management Adjusted EBITDA = 60 + 5 = 65.00
+        assert "$90.00" in app_instance.kpi_gp.cget("text")
+        assert "$30.00" in app_instance.kpi_ni.cget("text")
+        assert "$60.00" in app_instance.kpi_ebitda.cget("text")
+        assert "$65.00" in app_instance.kpi_adj_ebitda.cget("text")
 
-    def test_negative_margin_handling(self, app_instance):
-        """Test loss scenario and negative margin coloring"""
-        app_instance.entries["Total_Sales"].delete(0, "end")
-        app_instance.entries["Total_Sales"].insert(0, "50000")
+    def test_management_adjustments_uplift(self, app_instance):
+        """Test that management adjustments properly uplift adjusted EBITDA"""
+        app_instance.entries["Total_Adjustments"].delete(0, "end")
+        app_instance.entries["Total_Adjustments"].insert(0, "15.0")
         app_instance.calculate_interactions()
 
-        # Revenue = 43k, COGS = 66k -> Gross Profit = -23k (Loss)
-        assert "-$23,000.00" in app_instance.kpi_gp.cget("text") or "$-23,000.00" in app_instance.kpi_gp.cget("text")
-        assert app_instance.kpi_gp.cget("text_color") == "#f87171"  # Red text color on loss
+        # Reported EBITDA = 20.00 -> Adjusted EBITDA = 35.00
+        assert "$20.00" in app_instance.kpi_ebitda.cget("text")
+        assert "$35.00" in app_instance.kpi_adj_ebitda.cget("text")

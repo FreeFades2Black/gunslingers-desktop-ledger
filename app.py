@@ -26,23 +26,27 @@ class PLForecastApp(ctk.CTk):
         super().__init__()
 
         self.title("The Gunslinger's Desktop Ledger — P&L Forecasting Engine")
-        self.geometry("980x780")
-        self.minsize(880, 680)
+        self.geometry("980x820")
+        self.minsize(880, 700)
 
         self.df = None
         self.entries = {}
         self.sliders = {}
 
-        # Default Baseline Model
+        # Default Baseline Model from Financial Schema
         self.default_data = {
-            "Total_Sales": 107000.0,
-            "Discounts_Refunds": -7000.0,
-            "Total_Direct_COGS": 52500.0,
-            "Total_Indirect_COGS": 13500.0,
-            "Total_Operating_Expenses": 14000.0,
-            "Marketing_Advertising": 5000.0,
-            "Payroll_Salaries": 22000.0,
-            "Taxes_Interest": 3500.0
+            "Total_Sales": 107.0,
+            "Discounts_Refunds": -7.0,
+            "Total_Direct_COGS": 52.5,
+            "Total_Indirect_COGS": 13.5,
+            "Total_Operating_Expenses": 14.0,
+            "Gain_Loss_on_Sales_of_Assets": 0.0,
+            "Depreciation_Amortization": 20.0,
+            "Interest_Expense": 0.0,
+            "Other_Income_Expenses": 0.0,
+            "Other_Non_Operating_Expenses": 0.0,
+            "Income_Taxes": 2.5,
+            "Total_Adjustments": 0.0
         }
 
         self.create_widgets()
@@ -65,7 +69,7 @@ class PLForecastApp(ctk.CTk):
 
         subtitle_lbl = ctk.CTkLabel(
             header_frame,
-            text="Interactive Factor Sensitivity & Real-Time P&L Forecasting Engine",
+            text="Interactive Factor Sensitivity, EBITDA Adjustments & Real-Time P&L Forecasting Engine",
             font=ctk.CTkFont(family="Arial", size=12),
             text_color="#94a3b8"
         )
@@ -120,10 +124,25 @@ class PLForecastApp(ctk.CTk):
         self.kpi_frame.pack(fill="x", padx=16, pady=8)
 
         # Grid of 4 Key Metrics
-        self.kpi_rev = self._create_kpi_box(self.kpi_frame, "TOTAL REVENUE", "$100,000", "#38bdf8", 0)
-        self.kpi_cogs = self._create_kpi_box(self.kpi_frame, "TOTAL COGS", "$66,000", "#f87171", 1)
-        self.kpi_gp = self._create_kpi_box(self.kpi_frame, "GROSS PROFIT", "$34,000 (34%)", "#fbbf24", 2)
-        self.kpi_ni = self._create_kpi_box(self.kpi_frame, "NET INCOME", "$20,000 (20%)", "#4ade80", 3)
+        self.kpi_gp = self._create_kpi_box(self.kpi_frame, "GROSS PROFIT", "$34.00", "#38bdf8", 0)
+        self.kpi_ni = self._create_kpi_box(self.kpi_frame, "NET INCOME", "$0.00", "#f87171", 1)
+        self.kpi_ebitda = self._create_kpi_box(self.kpi_frame, "REPORTED EBITDA", "$20.00", "#fbbf24", 2)
+        self.kpi_adj_ebitda = self._create_kpi_box(self.kpi_frame, "MANAGEMENT ADJ. EBITDA", "$20.00", "#4ade80", 3)
+
+        # ---------------------------------------------------------------------
+        # OUTPUT SUMMARY BANNER
+        # ---------------------------------------------------------------------
+        self.output_frame = ctk.CTkFrame(self, corner_radius=10, fg_color=("#0f172a", "#1e293b"))
+        self.output_frame.pack(fill="x", padx=16, pady=(4, 8))
+
+        self.lbl_results = ctk.CTkLabel(
+            self.output_frame,
+            text="Load a spreadsheet or edit factors to calculate real-time interactions.",
+            font=ctk.CTkFont(family="Consolas", size=13, weight="bold"),
+            text_color="#e2e8f0",
+            justify="center"
+        )
+        self.lbl_results.pack(padx=12, pady=10)
 
         # ---------------------------------------------------------------------
         # MAIN SCROLLABLE INPUT GRID
@@ -131,11 +150,11 @@ class PLForecastApp(ctk.CTk):
         self.main_frame = ctk.CTkScrollableFrame(
             self,
             width=940,
-            height=400,
+            height=360,
             corner_radius=10,
             fg_color=("#0f172a", "#090d16")
         )
-        self.main_frame.pack(padx=16, pady=8, fill="both", expand=True)
+        self.main_frame.pack(padx=16, pady=4, fill="both", expand=True)
 
         # Bottom Quick Status
         self.status_bar = ctk.CTkLabel(
@@ -225,7 +244,7 @@ class PLForecastApp(ctk.CTk):
                 text=f"{clean_col}:",
                 font=ctk.CTkFont(family="Arial", size=12, weight="bold"),
                 anchor="w",
-                width=240
+                width=260
             )
             lbl.grid(row=row_idx, column=0, sticky="w", padx=12, pady=6)
 
@@ -252,63 +271,82 @@ class PLForecastApp(ctk.CTk):
 
         self.calculate_interactions()
 
-    def calculate_interactions(self):
-        """Real-time multi-factor P&L accounting calculation"""
-        data = {}
-        for col, entry in self.entries.items():
-            raw_text = entry.get().strip().replace("$", "").replace(",", "")
-            try:
-                data[col] = float(raw_text) if raw_text else 0.0
-            except ValueError:
-                data[col] = 0.0
+    def calculate_interactions(self, event=None):
+        """Real-time factor recalculation with EBITDA adjustments"""
+        try:
+            # Extract active values from inputs
+            data = {}
+            for col, entry in self.entries.items():
+                raw_text = entry.get().strip().replace("$", "").replace(",", "")
+                try:
+                    data[col] = float(raw_text) if raw_text else 0.0
+                except ValueError:
+                    data[col] = 0.0
+            
+            # 1. Revenue
+            total_sales = data.get('Total_Sales', 107.0)
+            discounts = data.get('Discounts_Refunds', -7.0)
+            total_revenue = total_sales + discounts
 
-        # Flexible column resolution
-        def get_val(*keys, default=0.0):
-            for k in keys:
-                for col in data:
-                    if k.lower() == col.lower() or k.lower() == col.lower().replace("_", ""):
-                        return data[col]
-            return default
+            # 2. COGS
+            total_direct_cogs = data.get('Total_Direct_COGS', 52.5)
+            total_indirect_cogs = data.get('Total_Indirect_COGS', 13.5)
+            total_cogs = total_direct_cogs + total_indirect_cogs
 
-        total_sales = get_val("Total_Sales", "Sales", "Gross_Sales", default=100000.0)
-        discounts = get_val("Discounts_Refunds", "Discounts", "Refunds", default=0.0)
-        total_revenue = total_sales + discounts
+            # 3. Gross Profit
+            gross_profit = total_revenue - total_cogs
+            gp_margin = (gross_profit / total_revenue * 100.0) if total_revenue > 0 else 0.0
 
-        direct_cogs = get_val("Total_Direct_COGS", "Direct_COGS", "COGS_Direct", default=50000.0)
-        indirect_cogs = get_val("Total_Indirect_COGS", "Indirect_COGS", "COGS_Indirect", default=10000.0)
-        total_cogs = direct_cogs + indirect_cogs
+            # 4. Operating Expenses
+            total_opex = data.get('Total_Operating_Expenses', 14.0)
 
-        gross_profit = total_revenue - total_cogs
-        gp_margin = (gross_profit / total_revenue * 100.0) if total_revenue > 0 else 0.0
+            # 5. EBITDA Adjustments & Bottom Line Items
+            gain_loss_assets = data.get('Gain_Loss_on_Sales_of_Assets', 0.0)
+            depreciation = data.get('Depreciation_Amortization', 20.0)
+            interest_expense = data.get('Interest_Expense', 0.0)
+            other_income_exp = data.get('Other_Income_Expenses', 0.0)
+            other_non_op = data.get('Other_Non_Operating_Expenses', 0.0)
+            income_taxes = data.get('Income_Taxes', 2.5)
 
-        # Operating Expenses
-        opex_total = get_val("Total_Operating_Expenses", "Operating_Expenses", "OpEx", default=15000.0)
-        marketing = get_val("Marketing_Advertising", "Marketing", "Advertising", default=0.0)
-        payroll = get_val("Payroll_Salaries", "Payroll", "Salaries", default=0.0)
-        taxes = get_val("Taxes_Interest", "Taxes", "Interest", default=0.0)
+            # Net Income = Gross Profit - OpEx - Interest - Taxes - Depreciation (+/- others)
+            net_income = gross_profit - total_opex - interest_expense - income_taxes - depreciation + gain_loss_assets + other_income_exp + other_non_op
+            net_margin = (net_income / total_revenue * 100.0) if total_revenue > 0 else 0.0
 
-        # Sum granular OpEx if total was 0
-        if opex_total == 0.0 and (marketing > 0 or payroll > 0):
-            opex_total = marketing + payroll
+            # Total EBITDA Adjustments = Interest + Taxes + Depreciation & Amortization (plus other non-operating addbacks)
+            total_ebitda_adjustments = interest_expense + income_taxes + depreciation + (-gain_loss_assets) - other_income_exp - other_non_op
+            
+            # Reported EBITDA = Net Income + Total EBITDA Adjustments
+            reported_ebitda = net_income + total_ebitda_adjustments
 
-        net_income = gross_profit - opex_total - taxes
-        net_margin = (net_income / total_revenue * 100.0) if total_revenue > 0 else 0.0
+            # Management Adjusted EBITDA
+            total_adjustments = data.get('Total_Adjustments', 0.0)
+            management_adjusted_ebitda = reported_ebitda + total_adjustments
 
-        # Update KPI display boxes
-        self.kpi_rev.configure(text=f"${total_revenue:,.2f}")
-        self.kpi_cogs.configure(text=f"${total_cogs:,.2f}")
-        
-        gp_color = "#4ade80" if gross_profit >= 0 else "#f87171"
-        self.kpi_gp.configure(
-            text=f"${gross_profit:,.2f} ({gp_margin:.1f}%)",
-            text_color=gp_color
-        )
+            # Update KPI stat boxes
+            gp_color = "#4ade80" if gross_profit >= 0 else "#f87171"
+            self.kpi_gp.configure(
+                text=f"${gross_profit:,.2f} ({gp_margin:.1f}%)",
+                text_color=gp_color
+            )
 
-        ni_color = "#4ade80" if net_income >= 0 else "#f87171"
-        self.kpi_ni.configure(
-            text=f"${net_income:,.2f} ({net_margin:.1f}%)",
-            text_color=ni_color
-        )
+            ni_color = "#4ade80" if net_income >= 0 else "#f87171"
+            self.kpi_ni.configure(
+                text=f"${net_income:,.2f} ({net_margin:.1f}%)",
+                text_color=ni_color
+            )
+
+            self.kpi_ebitda.configure(text=f"${reported_ebitda:,.2f}")
+            self.kpi_adj_ebitda.configure(text=f"${management_adjusted_ebitda:,.2f}")
+
+            # Update Output Banner text
+            summary_text = (
+                f"Gross Profit: {gross_profit:.2f}  |  Net Income: {net_income:.2f}\n"
+                f"Reported EBITDA: {reported_ebitda:.2f}  |  Management Adjusted EBITDA: {management_adjusted_ebitda:.2f}"
+            )
+            self.lbl_results.configure(text=summary_text)
+
+        except ValueError:
+            pass
 
     def export_scenario(self):
         """Export current modified factors to Excel or CSV"""
