@@ -1,0 +1,70 @@
+{
+  "title": "Gunslingers Desktop Ledger Financial Health",
+  "schemaVersion": 38,
+  "panels": [
+    {
+      "title": "Transaction Commit Latency (ms)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "rate(sqlite_commit_duration_ms_sum[5m]) / rate(sqlite_commit_duration_ms_count[5m])",
+          "legendFormat": "Commit Latency (ms)"
+        }
+      ]
+    },
+    {
+      "title": "Double-Entry Balance Parity (Must be 0.00)",
+      "type": "stat",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "ledger_double_entry_imbalance_cents",
+          "legendFormat": "Imbalance Cents"
+        }
+      ]
+    },
+    {
+      "title": "CSV Import Throughput (rows/sec)",
+      "type": "stat",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "rate(ledger_csv_rows_imported_total[5m])",
+          "legendFormat": "Rows / sec"
+        }
+      ]
+    },
+    {
+      "title": "SQLite WAL File Size (MB)",
+      "type": "gauge",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "sqlite_wal_bytes / 1048576",
+          "legendFormat": "WAL Size (MB)"
+        }
+      ]
+    }
+  ]
+}

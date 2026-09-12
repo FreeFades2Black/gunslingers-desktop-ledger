@@ -1,0 +1,22 @@
+groups:
+  - name: desktop_ledger_alerts
+    rules:
+      - alert: DoubleEntryImbalanceDetected
+        expr: ledger_double_entry_imbalance_cents != 0
+        for: 0m
+        labels:
+          severity: critical
+          tier: financial-audit
+        annotations:
+          summary: "Double-entry bookkeeping imbalance detected"
+          description: "Total debits do not equal total credits. Audit balance violated."
+
+      - alert: SQLiteWALGrowthHigh
+        expr: sqlite_wal_bytes > 52428800
+        for: 10m
+        labels:
+          severity: warning
+          tier: database
+        annotations:
+          summary: "SQLite WAL file exceeded 50MB"
+          description: "Check for uncommitted transactions preventing checkpointing."
